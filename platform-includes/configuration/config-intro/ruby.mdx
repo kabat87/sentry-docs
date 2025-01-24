@@ -1,0 +1,10 @@
+Options are passed as attributes to the `config` object within the `init` block:
+
+
+```ruby
+Sentry.init do |config|
+  config.dsn = '___PUBLIC_DSN___'
+  config.max_breadcrumbs = 5
+  config.debug = true
+end
+```

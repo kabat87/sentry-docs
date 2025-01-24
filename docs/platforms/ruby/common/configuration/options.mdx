@@ -1,0 +1,369 @@
+---
+title: Basic Options
+sidebar_order: 1
+description: "Learn more about configuration options for the SDK. These options are set when the SDK is first initialized and passed to the init function as an object."
+---
+
+SDKs are configurable using a variety of options. The options are largely standardized among SDKs, but there are some differences to better accommodate platform peculiarities. Options are set when the SDK is first
+initialized.
+
+<PlatformContent includePath="configuration/config-intro" />
+
+## Common Options
+
+The below is a list of common options across SDKs. They work more or less the same in all SDKs with a few subtle differences to better support different platforms. Options that can be read from an environment variable (`SENTRY_DSN`, `SENTRY_ENVIRONMENT`, `SENTRY_RELEASE`) will be read automatically.
+
+<ConfigKey name="dsn">
+
+The _DSN_ tells the SDK where to send events. If this value isn't provided, the SDK will try to read it from the `SENTRY_DSN` environment variable. If that variable doesn't exist, the SDK won't send any events.
+
+Learn more about [DSN utilization](/product/sentry-basics/dsn-explainer/#dsn-utilization).
+
+</ConfigKey>
+
+<ConfigKey name="debug">
+
+This turns debug mode on or off. When enabled, SDK errors will be logged with backtrace.
+If you want more output, use `config.logger.level`. `debug` only works for attaching backtraces to the messages.
+
+</ConfigKey>
+
+<ConfigKey name="logger">
+
+The logger used by Sentry. The default for Rails is `Rails.logger`, otherwise it's `Sentry::Logger`. Make sure to change the logger level if you need debug output. **We don't recommend doing this in production unless absolutely necessary.**
+
+```ruby
+config.logger = Sentry::Logger.new(STDOUT)
+config.logger.level = ::Logger::DEBUG # defaults to INFO
+```
+
+</ConfigKey>
+
+<ConfigKey name="release">
+
+Lets you track your application version in Sentry.
+
+We intelligently guess the release in the following order of preference:
+
+- The `SENTRY_RELEASE` environment variable
+- Commit SHA of the last commit (git)
+- Reading from the `REVISION` file in the app root (used by Capistrano)
+- Heroku’s dyno metadata via the `HEROKU_SLUG_COMMIT` environment variable (must have been enabled via Heroku Labs)
+
+<PlatformContent includePath="set-release" />
+
+</ConfigKey>
+
+<ConfigKey name="sample-rate">
+
+The sampling factor to apply to events. A value of 0.00 won't send any events, and a value of 1.00 will send 100% of events.
+
+```ruby
+# send 50% of events
+config.sample_rate = 0.5
+```
+
+</ConfigKey>
+
+<ConfigKey name="send-client-reports">
+
+This lets you attach diagnostic client reports about dropped events to an existing envelope max once every 30s. The default is `true`. If you **don't want to send this data**, opt-out by setting:
+
+```ruby
+config.send_client_reports = false
+
+<Note>
+This information isn't currently visible to users, but we're planning on adding it to the user-facing UI in the near future.
+</Note>
+```
+
+</ConfigKey>
+
+<ConfigKey name="send-default-pii">
+
+When its value is `false` (the default), sensitive information like:
+
+- user ip
+- user cookie
+- request body
+- query string in the url
+
+won't be sent to Sentry. You can re-enable it by setting:
+
+```ruby
+config.send_default_pii = true
+```
+
+</ConfigKey>
+
+<ConfigKey name="send-modules">
+
+A boolean to decide whether to send module (dependency) information to Sentry. The default is `true`.
+
+```ruby
+config.send_modules = false # if you don't want to send all the dependency info
+```
+
+</ConfigKey>
+
+<ConfigKey name="include_local_variables">
+
+Whether to capture local variables from the raised exceptions frame. The default is `false`. (In older versions, this was called `capture_exception_frame_locals`.)
+
+</ConfigKey>
+
+<ConfigKey name="max-breadcrumbs">
+
+The maximum number of breadcrumbs the SDK could hold. The default is `100`.
+
+```ruby
+config.max_breadcrumbs = 30
+```
+
+</ConfigKey>
+
+<ConfigKey name="breadcrumbs-logger">
+
+Sentry supports different breadcrumbs loggers in the Ruby SDK:
+
+- `:sentry_logger` - A general breadcrumbs logger for all Ruby applications.
+- `:http_logger` - Captures requests made with the standard `net/http` library.
+- `:redis_logger` - Captures breadcrumbs from redis operations.
+- `:active_support_logger` - Built on top of [ActiveSupport instrumentation](https://guides.rubyonrails.org/active_support_instrumentation.html) and provides many Rails-specific information.
+- `:monotonic_active_support_logger` - Similar to `:active_support_logger` but breadcrumbs will have monotonic time values. Only available with Rails 6.1+.
+
+And you can enable them with the `breadcrumbs_logger` option:
+
+```ruby
+config.breadcrumbs_logger = [:active_support_logger]
+config.breadcrumbs_logger = [:active_support_logger, :http_logger]
+```
+
+</ConfigKey>
+
+<ConfigKey name="context-lines">
+
+How many lines to display before/after the line where issue occurs. Default is `3`.
+
+</ConfigKey>
+
+<ConfigKey name="environment">
+
+Sets the environment. This string is freeform and not set by default. A release can be associated with more than one environment so that you can separate them in the UI (think `staging` vs `prod` or similar).
+
+Sentry automatically sets the current environment from the environment variables: `SENTRY_CURRENT_ENV`, `SENTRY_ENVIRONMENT`, `RAILS_ENV`, `RACK_ENV` in that order and defaults to `development`.
+
+<PlatformContent includePath="set-environment" />
+
+</ConfigKey>
+
+<ConfigKey name="enabled-environments">
+
+By default, events will be sent to Sentry in all environments. If you don't want to send events in a specific environment, you can unset the `SENTRY_DSN` variable in that environment.
+
+You can also set up Sentry to only run in certain environments by configuring the `enabled_environments` list. For example, to only run Sentry in production:
+
+```ruby
+config.enabled_environments = %w[production]
+```
+
+</ConfigKey>
+
+<ConfigKey name="excluded-exceptions">
+
+You can use this option to stop getting notifications about certain exceptions. In the example below, the exceptions Rails uses to generate 404 responses will be suppressed.
+
+```ruby
+config.excluded_exceptions += ['ActionController::RoutingError', 'ActiveRecord::RecordNotFound']
+```
+
+You can find the list of exceptions that are excluded by default in `Sentry::Configuration::IGNORE_DEFAULT`. It is suggested that you append to these defaults rather than overwrite them with `=`.
+
+</ConfigKey>
+
+<ConfigKey name="inspect-exception-causes-for-exclusion">
+
+Inspect an incoming exception's causes when determining whether or not that exception should be excluded. This option works together with `excluded_exceptions`. The default value is `true`.
+
+```ruby
+config.inspect_exception_causes_for_exclusion = true
+```
+
+</ConfigKey>
+
+<ConfigKey name="enabled-patches">
+
+Some of our integrations work via patches that need to be enabled. Use this option to control which patches are loaded when the SDK is initialized.
+
+The list of all available patches is: `[:http, :redis, :puma, :graphql, :faraday]`.
+
+The list of patches enabled by default is: `[:http, :redis, :puma]`.
+
+```ruby
+# enable :faraday patch
+config.enabled_patches << :faraday
+
+# disable :puma patch
+config.enabled_patches.delete(:puma)
+```
+
+</ConfigKey>
+
+<ConfigKey name="skip-rake-integration">
+
+Determine whether to ignore exceptions caused by rake integrations. The default is `false`.
+
+</ConfigKey>
+
+<ConfigKey name="trusted-proxies">
+
+These trusted proxies will be skipped when the SDK computes the user's ip address and `sentry-rails` will automatically inject the value of `Rails.application.config.action_dispatch.trusted_proxies` to this option.
+
+```ruby
+config.trusted_proxies = ["2.2.2.2"]
+```
+
+</ConfigKey>
+
+## Tracing Options
+
+<ConfigKey name="traces-sample-rate">
+
+A number between 0 and 1 that determines the percentage of total transaction that will be sent to Sentry (with 0 representing 0% and 1, 100%). This will apply equally to all transactions created in the app. Either this or <PlatformIdentifier name="traces-sampler" /> must be defined to enable tracing.
+
+If <PlatformIdentifier name="traces-sample-rate" /> is set to 0, no new traces will be created. However, if you have another service (for example a JS frontend) that makes requests to your service and has trace information, those traces will be continued and transactions will be sent to Sentry.
+
+To disable all tracing, you'll either need to set <PlatformIdentifier name="traces-sample-rate" />`=None` or set <PlatformIdentifier name="enable-tracing" />`=False`. Once this is done, no new traces will be started and no incoming traces will be continued.
+
+<PlatformContent includePath="performance/traces-sample-rate" />
+
+</ConfigKey>
+
+<ConfigKey name="traces-sampler">
+
+A lambda or proc that's responsible for determining the chance that a given transaction has of being sent to Sentry (from 0-100%). It will automatically be passed information about the transaction and the context in which it's being created, and must return a number between `0` (0% chance of being sent) and `1` (100% chance of being sent).
+
+It can also be used for filtering transactions, by returning 0 for those that are of no interest. Either this or <PlatformIdentifier name="traces-sample-rate" /> must be defined to enable tracing.
+
+<PlatformContent includePath="performance/traces-sampler-as-sampler" />
+
+</ConfigKey>
+
+<ConfigKey name="enable-backpressure-handling">
+
+A boolean (the default is false) that controls whether a new monitor thread will be spawned to perform health checks on the SDK. If the system is unhealthy, the SDK will keep halving the `traces_sample_rate` set by you in 10 second intervals until recovery. This downsampling helps ensure that the system stays stable and reduces SDK overhead under high load.
+
+</ConfigKey>
+
+<ConfigKey name="trace-propagation-targets">
+
+An optional property that controls which downstream services receive tracing data, in the form of a `sentry-trace` and a `baggage` header attached to any outgoing HTTP requests.
+
+The option may contain an array of strings or regex against which the URLs of outgoing requests are matched.
+If one of the entries in the list matches the URL of an outgoing request, trace headers will be attached to that request.
+String entries don't have to be full matches, (meaning the URL of a request is matched when it _contains_ a string provided through the option).
+
+By default, trace headers are attached to every outgoing request from the instrumented client.
+
+</ConfigKey>
+
+<ConfigKey name="propagate-traces">
+
+By default, Sentry injects `sentry-trace` and `baggage` headers to outgoing requests made with `Net::HTTP` to connect traces between services. You can disable this behavior with:
+
+```ruby
+config.propagate_traces = false
+```
+
+</ConfigKey>
+
+## Hooks
+
+The below options can be used to hook the SDK in various ways and customize how events are being reported.
+
+<ConfigKey name="before-send">
+
+Provides a lambda or proc that's called with an SDK-specific message or error event object, and can return a modified event object, or `nil` to skip reporting the event. This can be used, for instance, for manual PII stripping before sending.
+
+By the time <PlatformIdentifier name="before-send" /> is executed, all scope data has already been applied to the event. Further modification of the scope won't have any effect.
+
+<PlatformContent includePath="configuration/before-send/" />
+
+</ConfigKey>
+
+<ConfigKey name="before-send-transaction">
+
+Provides a lambda or proc that's called with an SDK-specific transaction event object, and can return a modified transaction event object, or `nil` to skip reporting the event. One way this might be used is for manual PII stripping before sending.
+
+<PlatformContent includePath="configuration/before-send-transaction/" />
+
+</ConfigKey>
+
+<ConfigKey name="backtrace-cleanup-callback">
+
+If you want to clean up the backtrace of an exception before it's sent to Sentry, you can specify a callback with `backtrace_cleanup_callback`, for example:
+
+```ruby
+config.backtrace_cleanup_callback = lambda do |backtrace|
+  Rails.backtrace_cleaner.clean(backtrace)
+end
+```
+
+<PlatformContent includePath="configuration/before-send-transaction/" />
+
+</ConfigKey>
+
+## Transport Options
+
+<ConfigKey name="background-worker-threads">
+
+Sentry will send events in a non-blocking way with its own background worker. By default, the worker holds a thread pool that has [the number of available processors](https://ruby-concurrency.github.io/concurrent-ruby/master/Concurrent.html#available_processor_count-class_method) threads. But you can override it as follows:
+
+```ruby
+config.background_worker_threads = 5
+```
+
+Or if you want to send events synchronously, set the value to 0:
+
+```ruby
+config.background_worker_threads = 0
+```
+
+</ConfigKey>
+
+<ConfigKey name="transport-class">
+
+By default, the SDK uses the `Sentry::HTTPTransport` class for sending events to Sentry, which should work for the majority of users. But if you want to use your own Transport class, you can change it with this option:
+
+```ruby
+config.transport.transport_class = MyTransportClass
+```
+
+It would generally be advisable to derive your custom transport class from `Sentry::HTTPTransport` and just override the necessary logic.
+
+</ConfigKey>
+
+<ConfigKey name="proxy">
+
+Setup a proxy to use to connect to Sentry. This option is respected by the default `Sentry::HTTPTransport` class. You can set `config.transport.proxy` with as a `String` containing a proxy URI, or a `URI` object, or a `Hash` containing `uri`, `user` and `password` keys.
+
+```ruby
+Sentry.init do |config|
+  # ...
+
+  # Provide proxy config as a String
+  config.transport.proxy = "http://user:password@proxyhost.net:8080"
+
+  # Or a URI
+  config.transport.proxy = URI("http://user:password@proxyhost.net:8080")
+
+  # Or a Hash
+  config.transport.proxy = {
+    uri: "http://proxyhost.net:8080",
+    user: "user",
+    password: "password"
+  }
+end
+```
+
+</ConfigKey>
