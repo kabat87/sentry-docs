@@ -1,5 +1,6 @@
-import React from "react";
-import styled from "@emotion/styled";
+'use client';
+
+import styled from '@emotion/styled';
 
 type Video = {
   id: string;
@@ -15,44 +16,25 @@ const ResponsiveEmbed = styled.div`
   margin-bottom: 1rem;
 
   &:before {
-    content: "";
+    content: '';
     display: block;
     padding-top: 56.25%;
   }
 `;
 
-export const VimeoEmbed = ({ id, className }: Video) => (
-  <ResponsiveEmbed className={className}>
-    <StyledVimeoIframe
-      src={`https://player.vimeo.com/video/${id}`}
-      frameBorder="0"
-      allowFullScreen
-    />
-  </ResponsiveEmbed>
-);
+export function VimeoEmbed({id, className}: Video) {
+  return (
+    <ResponsiveEmbed className={className}>
+      <StyledVimeoIframe
+        src={`https://player.vimeo.com/video/${id}&dnt=true`}
+        frameBorder="0"
+        allowFullScreen
+      />
+    </ResponsiveEmbed>
+  );
+}
 
 const StyledVimeoIframe = styled.iframe`
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-`;
-
-export const YouTubeEmbed = ({ id, className }: Video) => (
-  <ResponsiveEmbed className={className}>
-    <StyledYouTubeIframe
-      src={`https://www.youtube-nocookie.com/embed/${id}?rel=0`}
-      frameBorder="0"
-      allowFullScreen
-      allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-    />
-  </ResponsiveEmbed>
-);
-
-const StyledYouTubeIframe = styled.iframe`
   position: absolute;
   top: 0;
   bottom: 0;
