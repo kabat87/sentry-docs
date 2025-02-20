@@ -1,6 +1,15 @@
 - slug: koa
   type: framework
   name: Koa
+- slug: hapi
+  type: framework
+  name: Hapi
+- slug: fastify
+  type: framework
+  name: Fastify
+- slug: nestjs
+  type: framework
+  name: Nest.js
 - slug: node
   type: language
   name: Node.js
@@ -62,13 +71,13 @@
 - slug: elixir
   type: language
   name: Elixir
-  case_style: PascalCase
+  case_style: snake_case
 - slug: objc
   type: language
   name: Objective-C
 - slug: csharp
   type: language
-  name: "C#"
+  name: 'C#'
   case_style: PascalCase
 - slug: go
   type: language
@@ -107,3 +116,13 @@
   type: language
   name: Dart
   case_style: camelCase
+- slug: bun
+  type: framework
+  name: Bun
+- slug: deno
+  type: framework
+  name: Deno
+- slug: powershell
+  type: language
+  name: PowerShell
+  case_style: PascalCase

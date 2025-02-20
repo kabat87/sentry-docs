@@ -1,107 +1,96 @@
-import React, { useEffect, useState } from "react";
-import * as Sentry from "@sentry/gatsby";
-import GuideGrid from "./guideGrid";
-import { PageContext } from "./basePage";
+'use client';
 
-type Item = {
-  title?: string;
-  url?: string;
-  items: Item[];
+import {useEffect, useState} from 'react';
+
+type TreeItem = {
+  children: TreeItem[];
+  id: string;
+  name: string;
 };
 
-const getHeadings = (element: HTMLElement): Item[] => {
-  const levels = [2, 3];
-  const headingSelector = levels.map(level => `h${level}`).join(`, `);
-  const htmlNodes: HTMLElement[] = Array.from(
-    element.querySelectorAll(headingSelector)
-  );
-  const headings = [];
-  const tree = [];
-  let lastDepth = null;
-  // XXX(dcramer): someone please rewrite this code to be less terrible, i hate trees
-  // TODO(dcramer): this doesnt handle jumping heading levels properly (probably)
-  htmlNodes.forEach((node, i) => {
-    if (!node.id) return;
-    const item = {
-      items: [],
-      url: `#${node.id}`,
-      title: node.innerText,
-    };
-
-    const depth = Number(node.nodeName[1]);
-    if (!lastDepth) {
-      headings.push(item);
-      tree.push(item);
-    } else if (lastDepth === depth) {
-      if (tree.length === 1) {
-        headings.push(item);
-      } else {
-        tree[tree.length - 2].items.push(item);
-      }
-      tree[tree.length - 1] = item;
-    } else if (depth > lastDepth) {
-      tree[tree.length - 1].items.push(item);
-      tree.push(item);
-    } else if (depth < lastDepth) {
-      tree.pop();
-      if (tree.length === 1) {
-        headings.push(item);
-      } else {
-        tree[tree.length - 2].items.push(item);
-      }
-      tree[tree.length - 1] = item;
-    }
-    lastDepth = depth;
-  });
-  return headings;
+type TreeNode = {
+  element: HTMLElement;
+  id: string;
+  level: number;
+  name: string;
 };
 
-type Props = {
-  contentRef: React.RefObject<HTMLElement>;
-  pageContext?: PageContext;
-};
+interface Props {
+  ignoreIds?: string[];
+}
 
-export default ({ contentRef, pageContext }: Props) => {
-  const [items, setItems] = useState<Item[]>(null);
-  const { platform } = pageContext;
+export function TableOfContents({ignoreIds = []}: Props) {
+  const [treeItems, setTreeItems] = useState<TreeItem[]>([]);
 
+  // gather the sdk option items on mount
   useEffect(() => {
-    if (!items && contentRef.current) {
-      try {
-        setItems(getHeadings(contentRef.current));
-      } catch (err) {
-        Sentry.captureException(err);
-        setItems([]);
+    if (typeof document === 'undefined') {
+      return;
+    }
+    const main = document.getElementById('main');
+    if (!main) {
+      return;
+    }
+    const nodes = Array.from(main.querySelectorAll('h2, h3'))
+      .map(el => {
+        const name = el.textContent?.trim() ?? '';
+        const id = el.id;
+        if (!id || !name || ignoreIds.includes(id)) {
+          return null;
+        }
+        return {
+          id,
+          name,
+          element: el,
+          level: el.tagName === 'H2' ? 1 : 2,
+        };
+      })
+      .filter(Boolean) as TreeNode[];
+
+    // Now group them together
+    // We only support 2 levels of nesting,
+    // where the first level is assumed to be headings, and the second one is assumed to be options
+    const _tocItems: TreeItem[] = [];
+    let currentItem: TreeItem | undefined;
+    for (let node of nodes) {
+      if (!currentItem || node.level === 1) {
+        currentItem = {
+          id: node.id,
+          name: node.name,
+          children: [],
+        };
+        _tocItems.push(currentItem);
+      } else {
+        currentItem.children.push({
+          id: node.id,
+          name: node.name,
+          children: [],
+        });
       }
     }
-  });
 
-  if (!items || !items.length) return null;
+    // Remove groups without children
+    setTreeItems(_tocItems.filter(item => item.children.length > 0));
+  }, [ignoreIds]);
 
-  const recurse = items =>
-    items.map(i => {
-      if (!i.title) return recurse(i.items);
-      return (
-        <li className="toc-entry" key={i.url}>
-          <a href={i.url}>{i.title}</a>
-          {i.items && <ul>{recurse(i.items)}</ul>}
-        </li>
-      );
-    });
   return (
-    <div className="doc-toc">
-      <div className="doc-toc-title">
-        <h6>On this page</h6>
-      </div>
-      <ul className="section-nav">{recurse(items)}</ul>
-      {platform && (
-        <>
-          <div className="doc-toc-title">
-            <h6>Related Guides</h6>
-          </div>
-          <GuideGrid platform={platform.name} className="section-nav" />
-        </>
-      )}
-    </div>
+    <ul>
+      {treeItems.map(item => {
+        return (
+          <li key={item.id}>
+            <a href={`#${item.id}`}>{item.name}</a>
+            <ul>
+              {item.children.map(child => {
+                return (
+                  <li key={child.id}>
+                    <a href={`#${child.id}`}>{child.name}</a>
+                  </li>
+                );
+              })}
+            </ul>
+          </li>
+        );
+      })}
+    </ul>
   );
-};
+}

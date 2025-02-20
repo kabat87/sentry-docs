@@ -1,0 +1,14 @@
+Set `tracesSampleRate` in your config files, `sentry.server.config.js`, `sentry.client.config.js`, and `sentry.edge.config.js`:
+
+
+```javascript
+import * as Sentry from "@sentry/nextjs";
+
+Sentry.init({
+  dsn: "___PUBLIC_DSN___",
+
+  // We recommend adjusting this value in production, or using `tracesSampler`
+  // for finer control
+  tracesSampleRate: 1.0,
+});
+```

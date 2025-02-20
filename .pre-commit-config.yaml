@@ -2,7 +2,7 @@ default_language_version:
   node: latest
 exclude: '\.snap|node_modules$'
 repos:
-  - repo: git://github.com/pre-commit/pre-commit-hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v1.4.0
     hooks:
       - id: check-case-conflict
@@ -11,13 +11,19 @@ repos:
       - id: check-xml
       - id: check-yaml
       - id: detect-private-key
+        exclude: |
+          (?x)^(
+              develop-docs/backend/config.mdx|
+              develop-docs/integrations/github.mdx|
+              develop-docs/self-hosted/sso.mdx
+          )$
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: debug-statements
       - id: flake8
       - id: fix-encoding-pragma
         args: ["--remove"]
-  - repo: git://github.com/getsentry/pre-commit-hooks
+  - repo: https://github.com/getsentry/pre-commit-hooks
     rev: f3237d2d65af81d435c49dee3593dc8f03d23c2d
     hooks:
       - id: prettier

@@ -1,182 +1,134 @@
-import React from "react";
-import styled from "@emotion/styled";
-import { graphql, useStaticQuery } from "gatsby";
+import fs from 'fs';
 
-import usePlatform, {
-  getPlatform,
-  getPlatformsWithFallback,
-  Platform,
-} from "./hooks/usePlatform";
-import Content from "./content";
-import SmartLink from "./smartLink";
+import {useMemo} from 'react';
+import {getMDXComponent} from 'mdx-bundler/client';
 
-const includeQuery = graphql`
-  query IncludeQuery {
-    allFile(filter: { sourceInstanceName: { eq: "includes" } }) {
-      nodes {
-        id
-        relativePath
-        name
-        childMdx {
-          body
-        }
-      }
-    }
-  }
-`;
+import {getCurrentGuide, getDocsRootNode, getPlatform} from 'sentry-docs/docTree';
+import {getFileBySlug} from 'sentry-docs/mdx';
+import {mdxComponents} from 'sentry-docs/mdxComponents';
+import {serverContext} from 'sentry-docs/serverContext';
+import {
+  getVersion,
+  isVersioned,
+  stripVersion,
+  VERSION_INDICATOR,
+} from 'sentry-docs/versioning';
 
-const slugMatches = (slug1: string, slug2: string): boolean => {
-  if (slug1 === "browser") slug1 = "javascript";
-  if (slug2 === "browser") slug2 = "javascript";
-  return slug1 === slug2;
-};
-
-type FileNode = {
-  id: string;
-  relativePath: string;
-  name: string;
-  childMdx: {
-    body: any;
-  };
-};
+import {Include} from './include';
 
 type Props = {
   includePath: string;
-  platform?: string;
   children?: React.ReactNode;
   fallbackPlatform?: string;
-  notateUnsupported?: boolean;
+  noGuides?: boolean;
+  platform?: string;
 };
 
-const getFileForPlatform = (
-  includePath: string,
-  fileList: FileNode[],
-  platform: Platform
-): FileNode | null => {
-  const platformsToSearch = getPlatformsWithFallback(platform);
-  platformsToSearch.push("_default");
+const udpatePathIfVersionedFileDoesNotExist = (path: string): string => {
+  if (!isVersioned(path)) {
+    return path;
+  }
+  // Add .mdx extension if not present
+  const pathWithExtension =
+    path.endsWith('.mdx') || path.endsWith('.md') ? path : `${path}.mdx`;
 
-  const contentMatch = platformsToSearch
-    .map(name => name && fileList.find(m => slugMatches(m.name, name)))
-    .find(m => m);
-  if (!contentMatch) {
-    console.warn(
-      `Couldn't find content in ${includePath} for selected platform: ${platform.key}`
+  if (isVersioned(pathWithExtension) && !fs.existsSync(pathWithExtension)) {
+    return stripVersion(path);
+  }
+
+  return path;
+};
+
+export async function PlatformContent({includePath, platform, noGuides}: Props) {
+  const {path} = serverContext();
+
+  if (!platform) {
+    if (path.length < 2 || path[0] !== 'platforms') {
+      return null;
+    }
+    platform = path[1];
+  }
+
+  let guide: string | undefined;
+  if (!noGuides && path.length >= 4 && path[2] === 'guides') {
+    guide = `${platform}.${path[3]}`;
+  }
+
+  let doc: Awaited<ReturnType<typeof getFileBySlug>> | null = null;
+
+  if (guide) {
+    const guidePath = udpatePathIfVersionedFileDoesNotExist(
+      `platform-includes/${includePath}/${guide}`
     );
+
+    try {
+      doc = await getFileBySlug(guidePath);
+    } catch (e) {
+      // It's fine - keep looking.
+    }
   }
-  return contentMatch;
-};
 
-const MissingContent = styled.div`
-  font-style: italic;
-  background: var(--lightest-purple-background);
-  border: 1px dashed #ccc;
-  border-radius: 4px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  if (!doc) {
+    const rootNode = await getDocsRootNode();
+    const guideObject = getCurrentGuide(rootNode, path);
 
-  p:last-child {
-    margin-bottom: 0;
+    const fallbackGuidePath = udpatePathIfVersionedFileDoesNotExist(
+      `platform-includes/${includePath}/${guideObject?.fallbackGuide}${VERSION_INDICATOR}${getVersion(guide || '')}`
+    );
+
+    if (guideObject?.fallbackGuide) {
+      try {
+        doc = await getFileBySlug(fallbackGuidePath);
+      } catch (e) {
+        // It's fine - keep looking.
+      }
+    }
   }
-`;
 
-export default ({
-  includePath,
-  platform,
-  children,
-  notateUnsupported = true,
-}: Props): JSX.Element => {
-  const {
-    allFile: { nodes: files },
-  } = useStaticQuery(includeQuery);
-  const [dropdown, setDropdown] = React.useState(null);
-  const [currentPlatform, setPlatform, isFixed] = usePlatform(platform);
-  const hasDropdown = !isFixed;
+  if (!doc) {
+    try {
+      const platformPath = udpatePathIfVersionedFileDoesNotExist(
+        `platform-includes/${includePath}/${platform}`
+      );
 
-  const matches = files.filter(
-    node => node.relativePath.indexOf(includePath) === 0
-  );
+      doc = await getFileBySlug(platformPath);
+    } catch (e) {
+      // It's fine - keep looking.
+    }
+  }
 
-  const contentMatch = getFileForPlatform(
-    includePath,
-    matches,
-    currentPlatform
-  );
+  if (!doc) {
+    const rootNode = await getDocsRootNode();
+    const platformObject = getPlatform(rootNode, platform);
 
-  return (
-    <section className="platform-specific-content">
-      {hasDropdown && (
-        <div className="nav pb-1 flex">
-          <div className="dropdown mr-2 mb-1">
-            <button
-              className="btn btn-sm btn-secondary dropdown-toggle"
-              onClick={() => setDropdown(!dropdown)}
-            >
-              {currentPlatform.title}
-            </button>
+    const fallbackPlatformPath = udpatePathIfVersionedFileDoesNotExist(
+      `platform-includes/${includePath}/${platformObject?.fallbackPlatform}`
+    );
 
-            <div
-              className="nav dropdown-menu"
-              role="tablist"
-              style={{ display: dropdown ? "block" : "none" }}
-            >
-              {matches.map(node => {
-                const platform = getPlatform(node.name);
-                if (!platform) {
-                  console.warn(`Cannot find platform for ${node.name}`);
-                  return null;
-                }
-                return (
-                  <a
-                    className="dropdown-item"
-                    role="tab"
-                    key={platform.key}
-                    style={{ cursor: "pointer" }}
-                    onClick={() => {
-                      setDropdown(false);
-                      setPlatform(platform.key);
-                      // TODO: retain scroll
-                      // window.scrollTo(window.scrollX, window.scrollY);
-                    }}
-                  >
-                    {platform.title}
-                  </a>
-                );
-              })}
-              <SmartLink className="dropdown-item" to="/platforms/">
-                <em>Platform not listed?</em>
-              </SmartLink>
-            </div>
-          </div>
-        </div>
-      )}
+    if (platformObject?.fallbackPlatform) {
+      try {
+        doc = await getFileBySlug(fallbackPlatformPath);
+      } catch (e) {
+        // It's fine - keep looking.
+      }
+    }
+  }
 
-      <div className="tab-content">
-        <div className="tab-pane show active">
-          {contentMatch ? (
-            <React.Fragment>
-              {children || null}
-              <Content key={contentMatch.id} file={contentMatch} />
-            </React.Fragment>
-          ) : (
-            notateUnsupported && (
-              <MissingContent>
-                <p>
-                  The platform or SDK you've selected either does not support
-                  this functionality, or it is missing from documentation.
-                </p>
-                <p>
-                  If you think this is an error, feel free to{" "}
-                  <SmartLink to="https://github.com/getsentry/sentry-docs/issues/new/choose">
-                    let us know on GitHub
-                  </SmartLink>
-                  .
-                </p>
-              </MissingContent>
-            )
-          )}
-        </div>
-      </div>
-    </section>
-  );
-};
+  if (!doc) {
+    try {
+      doc = await getFileBySlug(`platform-includes/${includePath}/_default`);
+    } catch (e) {
+      // Couldn't find anything.
+      return null;
+    }
+  }
+
+  const {mdxSource} = doc;
+  function MDXLayoutRenderer({mdxSource: source, ...rest}) {
+    const MDXLayout = useMemo(() => getMDXComponent(source), [source]);
+    return <MDXLayout components={mdxComponentsWithWrapper} {...rest} />;
+  }
+  return <MDXLayoutRenderer mdxSource={mdxSource} />;
+}
+
+const mdxComponentsWithWrapper = mdxComponents({Include, PlatformContent});
