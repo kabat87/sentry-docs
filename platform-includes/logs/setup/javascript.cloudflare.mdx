@@ -1,0 +1,16 @@
+Logs are enabled by default. Initialize the SDK as usual, then use `Sentry.logger` to send logs.
+
+```typescript
+import * as Sentry from "@sentry/cloudflare";
+
+export default Sentry.withSentry(
+  (env: Env) => ({
+    dsn: "___PUBLIC_DSN___",
+  }),
+  {
+    async fetch(request, env, ctx) {
+      return new Response("Hello World!");
+    },
+  } satisfies ExportedHandler<Env>
+);
+```
